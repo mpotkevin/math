@@ -1,0 +1,371 @@
+import React, { useState, useEffect } from 'react';
+import { Printer, RefreshCw, Settings, FileText, CheckCircle2, Type, PlusCircle, Copy, Columns, Binary, Eye, EyeOff } from 'lucide-react';
+
+const App = () => {
+  // 核心設定狀態 - 依照要求順序排列
+  const [settings, setSettings] = useState({
+    numDigits: '2',       // 1. 數字位數
+    allowCarry: 'random', // 2. 進位 / 借位
+    numOperands: 3,       // 3. 數字連算數量
+    numQuestions: 20,     // 4. 總題目數
+    columns: 2,           // 5. 欄位數量
+    fontSize: 24,         // 6. 字體大小
+    numCopies: 1,         // 7. 列印份數
+    operation: 'mixed'    
+  });
+
+  const [worksheets, setWorksheets] = useState([]); 
+  const [showPreview, setShowPreview] = useState(false); 
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const getRandDigits = (mode) => {
+    switch (mode) {
+      case '1': return 1;
+      case '2': return 2;
+      case '3': return 3;
+      case 'mixed12': return Math.random() > 0.5 ? 1 : 2;
+      case 'mixed23': return Math.random() > 0.5 ? 2 : 3;
+      default: return 2;
+    }
+  };
+
+  const generateNumber = (digits) => {
+    const min = Math.pow(10, digits - 1);
+    const max = Math.pow(10, digits) - 1;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  };
+
+  const createOneWorksheetData = () => {
+    const questions = [];
+    let attempts = 0;
+    while (questions.length < settings.numQuestions && attempts < 5000) {
+      attempts++;
+      const operands = [];
+      const operators = [];
+      operands.push(generateNumber(getRandDigits(settings.numDigits)));
+      for (let i = 1; i < settings.numOperands; i++) {
+        const op = settings.operation === 'mixed' ? (Math.random() > 0.5 ? 'add' : 'sub') : settings.operation;
+        operators.push(op === 'add' ? '+' : '-');
+        operands.push(generateNumber(getRandDigits(settings.numDigits)));
+      }
+      let currentVal = operands[0];
+      let isValidResult = true;
+      for (let i = 0; i < operators.length; i++) {
+        if (operators[i] === '+') currentVal += operands[i+1];
+        else currentVal -= operands[i+1];
+        if (currentVal < 0) { isValidResult = false; break; }
+      }
+      if (!isValidResult) continue;
+
+      let hasCarryOrBorrow = false;
+      if (settings.allowCarry !== 'random') {
+        let tempVal = operands[0];
+        for (let i = 0; i < operators.length; i++) {
+          const a = tempVal;
+          const b = operands[i+1];
+          const op = operators[i];
+          const aStr = a.toString().split('').reverse();
+          const bStr = b.toString().split('').reverse();
+          const maxLen = Math.max(aStr.length, bStr.length);
+          if (op === '+') {
+            for (let j = 0; j < maxLen; j++) {
+              if (parseInt(aStr[j] || 0) + parseInt(bStr[j] || 0) >= 10) { hasCarryOrBorrow = true; break; }
+            }
+            tempVal += b;
+          } else {
+            for (let j = 0; j < maxLen; j++) {
+              if (parseInt(aStr[j] || 0) < parseInt(bStr[j] || 0)) { hasCarryOrBorrow = true; break; }
+            }
+            tempVal -= b;
+          }
+          if (hasCarryOrBorrow) break;
+        }
+        if (settings.allowCarry === 'no' && hasCarryOrBorrow) continue;
+        if (settings.allowCarry === 'yes' && !hasCarryOrBorrow) continue;
+      }
+      questions.push({ operands, operators, ans: currentVal });
+    }
+    return questions;
+  };
+
+  // 極致分頁邏輯：維持 1060px 閾值
+  const paginateQuestions = (questions) => {
+    const rowHeight = settings.fontSize * 2.0; 
+    const rowsPerPage = Math.max(1, Math.floor(1060 / rowHeight));
+    const questionsPerPage = rowsPerPage * settings.columns;
+    const pages = [];
+    for (let i = 0; i < questions.length; i += questionsPerPage) {
+      pages.push(questions.slice(i, i + questionsPerPage));
+    }
+    return pages;
+  };
+
+  const generateAllWorksheets = () => {
+    setIsGenerating(true);
+    const all = [];
+    for (let c = 0; c < settings.numCopies; c++) {
+      const questions = createOneWorksheetData();
+      all.push({
+        id: `sheet-${Date.now()}-${c}`,
+        copyIndex: c + 1,
+        pages: paginateQuestions(questions),
+        allQuestions: questions 
+      });
+    }
+    setWorksheets(all);
+    setIsGenerating(false);
+  };
+
+  useEffect(() => {
+    generateAllWorksheets();
+  }, [settings]);
+
+  const handlePrint = () => {
+    window.focus();
+    setTimeout(() => {
+      window.print();
+    }, 200);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans">
+      {/* 參數設定面板 */}
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl p-8 mb-10 print:hidden border border-slate-200">
+        <div className="flex items-center gap-4 mb-8 border-b pb-6">
+          <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg">
+            <Settings size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800">數學練習題產生器</h1>
+            <p className="text-slate-500 text-sm font-medium">請設定參數後直接列印 A4 紙本</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+          {/* 1. 數字位數 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Binary size={16}/> 1. 數字位數</span>
+            <select 
+              className="w-full rounded-xl border-slate-200 bg-slate-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={settings.numDigits}
+              onChange={(e) => setSettings({...settings, numDigits: e.target.value})}
+            >
+              <option value="1">個位數</option>
+              <option value="2">雙位數</option>
+              <option value="3">三位數</option>
+              <option value="mixed12">混合 (個位 + 雙位)</option>
+              <option value="mixed23">混合 (雙位 + 三位)</option>
+            </select>
+          </label>
+
+          {/* 2. 進位 / 借位 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><RefreshCw size={16}/> 2. 進位 / 借位</span>
+            <select 
+              className="w-full rounded-xl border-slate-200 bg-slate-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={settings.allowCarry}
+              onChange={(e) => setSettings({...settings, allowCarry: e.target.value})}
+            >
+              <option value="random">隨機 (不限)</option>
+              <option value="no">禁止進位 / 借位</option>
+              <option value="yes">必須有進位 / 借位</option>
+            </select>
+          </label>
+
+          {/* 3. 數字連算數量 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><PlusCircle size={16}/> 3. 數字連算數量 (個)</span>
+            <input 
+              type="number" min="2" max="10"
+              className="w-full rounded-xl border-slate-200 bg-slate-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+              value={settings.numOperands}
+              onChange={(e) => setSettings({...settings, numOperands: parseInt(e.target.value) || 2})}
+            />
+          </label>
+
+          {/* 4. 總題目數 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><FileText size={16}/> 4. 總題目數</span>
+            <input 
+              type="number" min="1" max="400"
+              className="w-full rounded-xl border-slate-200 bg-slate-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+              value={settings.numQuestions}
+              onChange={(e) => setSettings({...settings, numQuestions: parseInt(e.target.value) || 1})}
+            />
+          </label>
+
+          {/* 5. 欄位數量 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Columns size={16}/> 5. 欄位數量</span>
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              {[1, 2, 3].map(n => (
+                <button 
+                  key={n}
+                  onClick={() => setSettings({...settings, columns: n})}
+                  className={`py-2 rounded-xl font-bold border-2 transition-all ${settings.columns === n ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}
+                >
+                  {n} 欄
+                </button>
+              ))}
+            </div>
+          </label>
+
+          {/* 6. 字體大小 */}
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Type size={16}/> 6. 字體大小 (px)</span>
+            <div className="flex items-center gap-4 mt-2">
+               <input 
+                type="range" min="16" max="64" 
+                className="flex-1 h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                value={settings.fontSize}
+                onChange={(e) => setSettings({...settings, fontSize: parseInt(e.target.value)})}
+              />
+              <span className="w-8 font-bold text-blue-600">{settings.fontSize}</span>
+            </div>
+          </label>
+
+          {/* 7. 列印份數 */}
+          <label className="block md:col-span-2">
+            <span className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Copy size={16}/> 7. 列印份數</span>
+            <input 
+              type="number" min="1" max="100"
+              className="w-full rounded-xl border-slate-200 bg-slate-50 p-4 focus:ring-2 focus:ring-blue-500 outline-none font-black text-blue-600 text-center text-xl shadow-inner"
+              value={settings.numCopies}
+              onChange={(e) => setSettings({...settings, numCopies: parseInt(e.target.value) || 1})}
+            />
+          </label>
+        </div>
+
+        <div className="mt-12 flex flex-col md:flex-row justify-center items-center gap-4">
+          <button 
+            onClick={() => setShowPreview(!showPreview)}
+            className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-all active:scale-95"
+          >
+            {showPreview ? <><EyeOff size={20} /> 隱藏預覽</> : <><Eye size={20} /> 預覽排版</>}
+          </button>
+          
+          <button 
+            onClick={handlePrint}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-16 py-5 rounded-2xl font-black text-xl transition-all shadow-xl shadow-blue-100 active:scale-95 flex items-center gap-3"
+          >
+            <Printer size={28} /> 列印 / 下載 PDF
+          </button>
+        </div>
+      </div>
+
+      {/* A4 預覽與內容區 */}
+      <div className={`${showPreview ? 'block' : 'hidden'} print:block`}>
+        {worksheets.map((sheet) => (
+          <React.Fragment key={sheet.id}>
+            {sheet.pages.map((pageQuestions, pIdx) => (
+              <div key={`${sheet.id}-p-${pIdx}`} className="a4-page mx-auto bg-white overflow-hidden flex flex-col print:break-after-page shadow-2xl mb-10 print:mb-0 print:shadow-none">
+                <div className="p-[0.8cm] md:p-[1cm] flex-grow">
+                  <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-6">
+                    <div>
+                      <h2 className="text-2xl font-black text-black tracking-tighter">數學練習題 (#{sheet.copyIndex})</h2>
+                      <div className="text-[9px] text-gray-400 font-bold mt-0.5 uppercase">
+                        Page {pIdx + 1} / {sheet.pages.length}
+                      </div>
+                    </div>
+                    <div className="w-44 text-[11px] font-bold space-y-1">
+                      <div className="border-b border-gray-300 flex justify-between">姓名：<span className="w-28"></span></div>
+                      <div className="border-b border-gray-300 flex justify-between">日期：<span className="w-28"></span></div>
+                    </div>
+                  </div>
+
+                  <div 
+                    className="grid gap-x-12 gap-y-4" 
+                    style={{ 
+                      gridTemplateColumns: `repeat(${settings.columns}, 1fr)`,
+                      fontSize: `${settings.fontSize}px`,
+                      lineHeight: '1.2'
+                    }}
+                  >
+                    {pageQuestions.map((q, qIdx) => {
+                      const globalIdx = sheet.pages.slice(0, pIdx).reduce((acc, p) => acc + p.length, 0) + qIdx + 1;
+                      return (
+                        <div key={qIdx} className="flex items-baseline overflow-hidden">
+                          <span className="w-9 text-gray-300 font-mono text-xs font-bold shrink-0">{globalIdx}.</span>
+                          <div className="flex-1 font-mono flex flex-wrap items-center gap-x-1 gap-y-1 whitespace-nowrap">
+                            {q.operands.map((num, nIdx) => (
+                              <React.Fragment key={nIdx}>
+                                <span className="tabular-nums">{num}</span>
+                                {nIdx < q.operators.length && (
+                                  <span className="text-blue-500 font-bold px-0.5">{q.operators[nIdx]}</span>
+                                )}
+                              </React.Fragment>
+                            ))}
+                            <span className="font-bold">=</span>
+                            <div className="border-b border-slate-200 flex-grow min-w-[40px] h-[1.1em]"></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="p-2 text-center text-[8px] text-gray-200 border-t border-gray-50 italic">
+                  Set #{sheet.copyIndex} - P{pIdx + 1}
+                </div>
+              </div>
+            ))}
+
+            {/* 解答頁 */}
+            <div className="a4-page mx-auto bg-white overflow-hidden flex flex-col print:break-after-page shadow-2xl mb-10 print:mb-0 print:shadow-none">
+              <div className="p-[1.5cm] flex-grow">
+                <div className="flex items-center gap-4 mb-8 pb-2 border-b-2 border-slate-300">
+                  <CheckCircle2 className="text-emerald-500" size={24} />
+                  <h3 className="text-xl font-bold text-slate-800">解答卷 (Set #{sheet.copyIndex})</h3>
+                </div>
+                
+                <div className="grid grid-cols-5 gap-3">
+                  {sheet.allQuestions.map((q, qIdx) => (
+                    <div key={qIdx} className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col items-center">
+                      <span className="text-[9px] text-slate-400 font-bold mb-0.5">題號 {qIdx + 1}</span>
+                      <span className="text-lg font-black text-blue-700 font-mono tabular-nums">{q.ans}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4 text-center text-[8px] text-gray-300 border-t border-gray-50 uppercase font-bold tracking-widest">
+                Answer Key for Worksheet Set #{sheet.copyIndex}
+              </div>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .a4-page {
+          width: 21cm;
+          height: 29.7cm;
+          background: white;
+        }
+        @media screen {
+          .a4-page {
+            margin-top: 20px;
+            border-radius: 4px;
+          }
+        }
+        @media print {
+          body { background: white !important; padding: 0 !important; margin: 0 !important; }
+          .hidden { display: none !important; }
+          .print\\:block { display: block !important; }
+          .a4-page {
+            width: 21cm;
+            height: 29.7cm;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            page-break-after: always;
+            page-break-inside: avoid;
+            border-radius: 0;
+          }
+        }
+        .font-mono { font-family: 'Courier New', Courier, monospace; }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+      `}} />
+    </div>
+  );
+};
+
+export default App;
