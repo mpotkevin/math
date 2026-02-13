@@ -3,588 +3,479 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>極致質感撲克訓練工具</title>
+    <title>數學練習題產生器</title>
+    <!-- 引入 React, Tailwind CSS 與 Lucide 圖標庫 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Libre+Baskerville:wght@700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
         
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: #1a1a1a;
-            color: #e5e7eb;
-            overflow: hidden;
+            background-color: #f1f5f9;
         }
 
-        /* 擬真撲克牌設計 */
-        .card {
-            width: 130px;
-            aspect-ratio: 2.5 / 3.5;
-            perspective: 1000px;
-            animation: cardEntrance 0.5s ease-out backwards;
-            cursor: pointer;
-        }
-
-        .card.mini {
-            width: 80px;
-            animation: none;
-        }
-
-        @media (min-width: 1024px) {
-            .card { width: 140px; }
-            .card.mini { width: 90px; }
-        }
-
-        @keyframes cardEntrance {
-            from { opacity: 0; transform: translateY(20px) scale(0.9) rotate(5deg); }
-            to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
-        }
-
-        .card-inner {
+        .a4-page {
+            width: 21cm;
+            height: 29.7cm;
+            background: white;
+            margin: 2rem auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
             position: relative;
-            width: 100%;
-            height: 100%;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            transform-style: preserve-3d;
-            border-radius: 8px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
         }
 
-        .card-front, .card-back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            overflow: hidden;
+        @media print {
+            body { background: white !important; margin: 0 !important; padding: 0 !important; }
+            .no-print { display: none !important; }
+            .a4-page {
+                width: 21cm;
+                height: 29.7cm;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
         }
 
-        .card-front {
-            background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
-            display: flex;
-            flex-direction: column;
-            padding: 8px;
-        }
-
-        .card-rank-small {
-            font-family: 'Libre Baskerville', serif;
-            font-size: 1.25rem;
-            line-height: 1;
-            font-weight: bold;
-        }
+        .font-mono { font-family: 'Courier New', Courier, monospace; }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
         
-        .card-suit-small {
-            font-size: 0.875rem;
-        }
-
-        .card-suit-center {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 3.5rem;
-            opacity: 0.9;
-        }
-
-        .card-back {
-            background-color: #b91c1c;
-            color: white;
-            transform: rotateY(180deg);
-            background-image: 
-                repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.1) 8px, rgba(0,0,0,0.1) 16px),
-                radial-gradient(circle at center, #991b1b 0%, #7f1d1d 100%);
-            border: 3px solid white;
-        }
-
-        .card.flipped .card-inner {
-            transform: rotateY(180deg);
-        }
-
-        .hidden-answer {
-            filter: blur(12px);
-            opacity: 0;
-            transform: translateY(10px);
-            pointer-events: none;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        
-        .show-answer-box {
-            filter: blur(0) !important;
-            opacity: 1 !important;
-            transform: translateY(0) !important;
-            pointer-events: auto !important;
-        }
-
-        ::-webkit-scrollbar { width: 4px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
-
-        .sidebar-item {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.2s;
-        }
-        
-        select.bg-transparent option {
-            background-color: #1a1a1a;
-            color: white;
-        }
-
-        @keyframes pulse-timer {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
-            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
-        }
-        .animate-pulse-timer {
-            animation: pulse-timer 1.5s infinite;
-        }
+        /* 自定義捲軸 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body>
+    <div id="root"></div>
 
-    <!-- 頂部標題與導航 -->
-    <header class="bg-black/40 backdrop-blur-md p-4 border-b border-white/10 flex justify-between items-center px-8">
-        <h1 class="text-xl font-bold flex items-center gap-3 tracking-wider">
-            <span class="bg-indigo-600 p-1.5 rounded-lg"><i data-lucide="playing-cards" class="w-5 h-5"></i></span>
-            撲克認知訓練系統
-        </h1>
-        <nav class="flex gap-1 bg-white/5 p-1 rounded-xl">
-            <button onclick="setMode('draw')" id="btn-draw" class="px-4 py-2 rounded-lg text-sm transition-all font-medium">隨機抽牌</button>
-            <button onclick="setMode('missing')" id="btn-missing" class="px-4 py-2 rounded-lg text-sm transition-all font-medium">視覺找缺</button>
-            <button onclick="setMode('memory')" id="btn-memory" class="px-4 py-2 rounded-lg text-sm transition-all font-medium">序列記憶</button>
-            <button onclick="setMode('sort')" id="btn-sort" class="px-4 py-2 rounded-lg text-sm transition-all font-medium">數字排序</button>
-        </nav>
-    </header>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
 
-    <main class="flex-grow flex overflow-hidden">
-        <!-- 左側設定欄 -->
-        <aside class="w-80 bg-black/20 border-r border-white/10 p-6 flex flex-col gap-8 overflow-y-auto">
-            
-            <!-- 模式一：抽牌 -->
-            <div id="controls-draw" class="mode-control hidden space-y-6">
-                <div>
-                    <h3 class="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-4">抽牌模式設定</h3>
-                    <div class="space-y-4">
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">指定花色</label>
-                            <select id="draw-suit" class="bg-transparent w-full text-lg font-bold outline-none cursor-pointer">
-                                <option value="random">隨機花色</option>
-                                <option value="0">黑桃 ♠</option>
-                                <option value="1">紅心 ♥</option>
-                                <option value="2">方塊 ♦</option>
-                                <option value="3">梅花 ♣</option>
-                            </select>
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">每次抽幾張</label>
-                            <input type="number" id="draw-per-time" value="1" min="1" max="5" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">總數上限</label>
-                            <input type="number" id="draw-max" value="12" min="1" max="52" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                        <div class="flex items-center gap-3 px-1">
-                            <input type="checkbox" id="allow-repeat" class="w-5 h-5 rounded accent-indigo-500">
-                            <label for="allow-repeat" class="text-sm text-gray-300">允許重複牌面</label>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="drawCardsBatch()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-500/20 transition-all active:scale-95">
-                    立即抽取
-                </button>
-                <button onclick="resetDraw()" class="w-full text-gray-500 text-sm hover:text-white transition">清空紀錄與重置</button>
-            </div>
-
-            <!-- 模式二：找缺牌 -->
-            <div id="controls-missing" class="mode-control hidden space-y-6">
-                <div>
-                    <h3 class="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-4">找缺牌設定</h3>
-                    <div class="space-y-4">
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">指定花色</label>
-                            <select id="missing-suit" class="bg-transparent w-full text-lg font-bold outline-none cursor-pointer">
-                                <option value="random">隨機花色</option>
-                                <option value="0">黑桃 ♠</option>
-                                <option value="1">紅心 ♥</option>
-                                <option value="2">方塊 ♦</option>
-                                <option value="3">梅花 ♣</option>
-                            </select>
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">範圍 (1 至 X)</label>
-                            <input type="number" id="missing-range" value="13" min="5" max="13" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">缺少張數</label>
-                            <input type="number" id="missing-count" value="1" min="1" max="5" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                    </div>
-                </div>
-                <button onclick="generateMissing()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95">
-                    生成題目
-                </button>
-                <button onclick="toggleAnswer()" class="w-full border border-white/10 text-gray-300 py-3 rounded-xl hover:bg-white/5 transition">
-                    顯示答案
-                </button>
-            </div>
-
-            <!-- 模式三：記憶力 -->
-            <div id="controls-memory" class="mode-control hidden space-y-6">
-                <div>
-                    <h3 class="text-orange-400 text-xs font-bold uppercase tracking-widest mb-4">記憶力設定</h3>
-                    <div class="space-y-4">
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">花色設定</label>
-                            <select id="memory-suit-mode" class="bg-transparent w-full text-lg font-bold outline-none cursor-pointer">
-                                <option value="random">隨機花色</option>
-                                <option value="0">全黑桃 ♠</option>
-                                <option value="1">全紅心 ♥</option>
-                                <option value="2">全方塊 ♦</option>
-                                <option value="3">全梅花 ♣</option>
-                            </select>
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">記憶張數 (1-52)</label>
-                            <input type="number" id="memory-count" value="4" min="1" max="52" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">展示時間 (秒)</label>
-                            <input type="number" id="memory-time" value="5" min="1" max="30" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                    </div>
-                </div>
-                <button onclick="startMemory()" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-orange-500/20 transition-all active:scale-95">
-                    開始記憶
-                </button>
-                <button onclick="revealMemory()" id="btn-reveal-memory" disabled class="w-full border border-white/10 text-gray-300 py-3 rounded-xl hover:bg-white/5 transition disabled:opacity-30">
-                    核對全部答案
-                </button>
-                <p class="text-[10px] text-gray-500 text-center italic">點擊牌面即可手動翻開/蓋上</p>
-            </div>
-
-            <!-- 模式四：數字排序 -->
-            <div id="controls-sort" class="mode-control hidden space-y-6">
-                <div>
-                    <h3 class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-4">排序遊戲設定</h3>
-                    <div class="space-y-4">
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">指定花色</label>
-                            <select id="sort-suit" class="bg-transparent w-full text-lg font-bold outline-none cursor-pointer">
-                                <option value="random">隨機花色</option>
-                                <option value="0">黑桃 ♠</option>
-                                <option value="1">紅心 ♥</option>
-                                <option value="2">方塊 ♦</option>
-                                <option value="3">梅花 ♣</option>
-                            </select>
-                        </div>
-                        <div class="sidebar-item p-3 rounded-xl">
-                            <label class="block text-xs text-gray-400 mb-1">排序範圍 (1-13)</label>
-                            <input type="number" id="sort-range" value="5" min="2" max="13" class="bg-transparent w-full text-xl font-bold outline-none">
-                        </div>
-                    </div>
-                </div>
-                <button onclick="generateSort()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-cyan-500/20 transition-all active:scale-95">
-                    打亂排序
-                </button>
-                <p class="text-[10px] text-gray-500 text-center italic">請觀察亂序題目並排列實體撲克牌</p>
-            </div>
-
-            <!-- 底部歷史區 -->
-            <div id="history-section" class="mt-auto hidden border-t border-white/10 pt-6">
-                <p class="text-[10px] text-gray-500 uppercase tracking-tighter mb-2">歷史抽取紀錄</p>
-                <div id="history-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2"></div>
-            </div>
-        </aside>
-
-        <!-- 右側展示區 -->
-        <section id="main-stage" class="flex-grow relative bg-gradient-to-br from-gray-900 to-black p-4 flex flex-col justify-center items-center overflow-hidden">
-            
-            <!-- 觀察倒數 (右下角) -->
-            <div id="memory-timer" class="absolute bottom-6 right-6 bg-orange-600/40 backdrop-blur-md border border-orange-500/50 px-5 py-3 rounded-2xl hidden flex flex-col items-center gap-1 z-10 animate-pulse-timer shadow-2xl">
-                <span class="text-orange-200 font-bold uppercase text-[10px] tracking-widest">觀察倒數</span>
-                <div class="flex items-center gap-2">
-                    <i data-lucide="timer" class="w-4 h-4 text-orange-400"></i>
-                    <span id="timer-seconds" class="text-white font-bold text-3xl min-w-[1.5ch] text-center">5</span>
-                </div>
-            </div>
-
-            <!-- 容器：預設維持自動換行 -->
-            <div id="cards-container" class="flex flex-wrap justify-center items-center gap-3 w-full p-4 overflow-y-auto">
-                <div class="text-center text-gray-600">
-                    <i data-lucide="mouse-pointer-2" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
-                    <p class="text-lg">選擇模式並點擊開始</p>
-                </div>
-            </div>
-
-            <!-- 懸浮答案顯示區 -->
-            <div id="floating-ans-container" class="absolute bottom-6 right-6 bg-black/60 backdrop-blur-md border border-white/20 p-4 rounded-2xl hidden-answer flex flex-col items-center gap-2">
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">缺失牌面</p>
-                <div id="floating-ans-cards" class="flex gap-2"></div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Toast 提示 -->
-    <div id="toast" class="fixed top-24 left-1/2 -translate-x-1/2 bg-white text-black px-6 py-2 rounded-full font-bold shadow-2xl transition-all opacity-0 scale-90 pointer-events-none z-50">
-        提示
-    </div>
-
-    <script>
-        const suits = [
-            { name: 'spades', char: '♠', color: '#111827' },
-            { name: 'hearts', char: '♥', color: '#dc2626' },
-            { name: 'diamonds', char: '♦', color: '#dc2626' },
-            { name: 'clubs', char: '♣', color: '#111827' }
-        ];
-        const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-        
-        let currentMode = '';
-        let fullDeck = [];
-        let drawHistory = [];
-        let missingAnswers = [];
-        let memorySequence = [];
-        let memoryTimer = null;
-        let countdownInterval = null;
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.remove('opacity-0', 'scale-90');
-            t.classList.add('opacity-100', 'scale-100');
-            setTimeout(() => {
-                t.classList.add('opacity-0', 'scale-90');
-                t.classList.remove('opacity-100', 'scale-100');
-            }, 2000);
-        }
-
-        function createCardElement(rank, suitObj, isBack = false, delay = 0, isMini = false) {
-            const card = document.createElement('div');
-            card.className = `card ${isBack ? 'flipped' : ''} ${isMini ? 'mini' : ''}`;
-            card.style.animationDelay = `${delay}s`;
-            
-            const content = `
-                <div class="card-inner">
-                    <div class="card-front" style="color: ${suitObj.color}">
-                        <div class="absolute top-1 left-1 flex flex-col items-center">
-                            <span class="card-rank-small">${rank}</span>
-                            <span class="card-suit-small">${suitObj.char}</span>
-                        </div>
-                        <div class="card-suit-center">${suitObj.char}</div>
-                        <div class="absolute bottom-1 right-1 flex flex-col items-center rotate-180">
-                            <span class="card-rank-small">${rank}</span>
-                            <span class="card-suit-small">${suitObj.char}</span>
-                        </div>
-                    </div>
-                    <div class="card-back"></div>
-                </div>
-            `;
-            card.innerHTML = content;
-            card.onclick = () => card.classList.toggle('flipped');
-            return card;
-        }
-
-        function setMode(mode) {
-            currentMode = mode;
-            if(countdownInterval) clearInterval(countdownInterval);
-            document.getElementById('memory-timer').classList.add('hidden');
-
-            document.querySelectorAll('.mode-control').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('nav button').forEach(el => el.classList.remove('bg-indigo-600', 'text-white'));
-            
-            document.getElementById(`controls-${mode}`).classList.remove('hidden');
-            document.getElementById(`btn-${mode}`).classList.add('bg-indigo-600', 'text-white');
-            
-            const stage = document.getElementById('cards-container');
-            // 確保容器始終維持 Grid/Wrap 佈局
-            stage.className = "flex flex-wrap justify-center items-center gap-3 w-full p-4 overflow-y-auto";
-            stage.innerHTML = '';
-            
-            document.getElementById('floating-ans-container').classList.remove('show-answer-box');
-            document.getElementById('history-section').classList.add('hidden');
-            
-            if (mode === 'draw') {
-                initDeck();
-                document.getElementById('history-section').classList.remove('hidden');
-            }
-            lucide.createIcons();
-        }
-
-        function initDeck() {
-            fullDeck = [];
-            suits.forEach(s => ranks.forEach(r => fullDeck.push({ rank: r, suit: s })));
-            drawHistory = [];
-            updateHistoryUI();
-        }
-
-        function drawCardsBatch() {
-            const numToDraw = parseInt(document.getElementById('draw-per-time').value) || 1;
-            const limit = parseInt(document.getElementById('draw-max').value);
-            const allowRepeat = document.getElementById('allow-repeat').checked;
-            const suitMode = document.getElementById('draw-suit').value;
-            const stage = document.getElementById('cards-container');
-            
-            stage.innerHTML = '';
-
-            for(let i=0; i < numToDraw; i++) {
-                let cardData;
-                if (allowRepeat) {
-                    let s = suitMode === 'random' ? suits[Math.floor(Math.random() * 4)] : suits[parseInt(suitMode)];
-                    let r = ranks[Math.floor(Math.random() * 13)];
-                    cardData = { rank: r, suit: s };
-                } else {
-                    let filteredDeck = suitMode === 'random' ? fullDeck : fullDeck.filter(c => c.suit === suits[parseInt(suitMode)]);
-                    if (filteredDeck.length === 0) {
-                        showToast("牌組已抽完"); break;
-                    }
-                    if (drawHistory.length >= limit) {
-                        showToast("已達上限"); break;
-                    }
-                    const idxInFiltered = Math.floor(Math.random() * filteredDeck.length);
-                    cardData = filteredDeck[idxInFiltered];
-                    fullDeck.splice(fullDeck.indexOf(cardData), 1);
+        // 圖標組件封裝
+        const Icon = ({ name, size = 16, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
                 }
-                drawHistory.unshift(cardData);
-                stage.appendChild(createCardElement(cardData.rank, cardData.suit, false, i * 0.1));
-            }
-            updateHistoryUI();
-        }
-
-        function updateHistoryUI() {
-            const list = document.getElementById('history-list');
-            list.innerHTML = '';
-            drawHistory.forEach(card => {
-                const badge = document.createElement('div');
-                badge.className = 'px-2 py-1 bg-white/10 rounded text-xs font-bold border border-white/5';
-                badge.style.color = (card.suit.color === '#111827') ? '#9ca3af' : '#f87171';
-                badge.innerText = `${card.suit.char}${card.rank}`;
-                list.appendChild(badge);
-            });
-        }
-
-        function resetDraw() {
-            initDeck();
-            document.getElementById('cards-container').innerHTML = '<p class="text-gray-500 italic">牌組已重置</p>';
-        }
-
-        function generateMissing() {
-            const range = parseInt(document.getElementById('missing-range').value);
-            const mCount = parseInt(document.getElementById('missing-count').value);
-            const suitMode = document.getElementById('missing-suit').value;
-            const stage = document.getElementById('cards-container');
-            const ansContainer = document.getElementById('floating-ans-cards');
-            
-            stage.innerHTML = '';
-            ansContainer.innerHTML = '';
-            document.getElementById('floating-ans-container').classList.remove('show-answer-box');
-
-            let suit = suitMode === 'random' ? suits[Math.floor(Math.random() * 4)] : suits[parseInt(suitMode)];
-            let tempPool = ranks.slice(0, range);
-            
-            missingAnswers = [];
-            for(let i=0; i<mCount; i++) {
-                const idx = Math.floor(Math.random() * tempPool.length);
-                const missingRank = tempPool.splice(idx, 1)[0];
-                missingAnswers.push({ rank: missingRank, suit: suit });
-                ansContainer.appendChild(createCardElement(missingRank, suit, false, 0, true));
-            }
-
-            const showCards = tempPool.sort(() => Math.random() - 0.5);
-            showCards.forEach((r, idx) => {
-                stage.appendChild(createCardElement(r, suit, false, idx * 0.05));
-            });
-        }
-
-        function toggleAnswer() {
-            const el = document.getElementById('floating-ans-container');
-            if(el) el.classList.toggle('show-answer-box');
-        }
-
-        function startMemory() {
-            let count = parseInt(document.getElementById('memory-count').value);
-            const time = parseInt(document.getElementById('memory-time').value);
-            const suitMode = document.getElementById('memory-suit-mode').value;
-            const stage = document.getElementById('cards-container');
-            const revealBtn = document.getElementById('btn-reveal-memory');
-            const timerBox = document.getElementById('memory-timer');
-            const timerSec = document.getElementById('timer-seconds');
-            
-            stage.innerHTML = '';
-            memorySequence = [];
-            revealBtn.disabled = true;
-
-            let sourceDeck = [];
-            if (suitMode === 'random') {
-                suits.forEach(s => ranks.forEach(r => sourceDeck.push({ rank: r, suit: s })));
-                if (count > 52) count = 52;
-            } else {
-                let s = suits[parseInt(suitMode)];
-                ranks.forEach(r => sourceDeck.push({ rank: r, suit: s }));
-                if (count > 13) { showToast("花色上限為 13 張"); count = 13; }
-            }
-
-            sourceDeck.sort(() => Math.random() - 0.5);
-            memorySequence = sourceDeck.slice(0, count);
-
-            memorySequence.forEach((card, i) => {
-                stage.appendChild(createCardElement(card.rank, card.suit, false, i * 0.1));
-            });
-
-            if(countdownInterval) clearInterval(countdownInterval);
-            if(memoryTimer) clearTimeout(memoryTimer);
-
-            let timeLeft = time;
-            timerSec.innerText = timeLeft;
-            timerBox.classList.remove('hidden');
-
-            countdownInterval = setInterval(() => {
-                timeLeft--;
-                timerSec.innerText = timeLeft;
-                if(timeLeft <= 0) {
-                    clearInterval(countdownInterval);
-                    timerBox.classList.add('hidden');
-                }
-            }, 1000);
-
-            memoryTimer = setTimeout(() => {
-                const cards = stage.querySelectorAll('.card');
-                cards.forEach(c => c.classList.add('flipped'));
-                showToast("牌面已覆蓋，點擊可單張翻開");
-                revealBtn.disabled = false;
-            }, time * 1000);
-        }
-
-        function revealMemory() {
-            const cards = document.querySelectorAll('.card');
-            cards.forEach(c => c.classList.remove('flipped'));
-            document.getElementById('btn-reveal-memory').disabled = true;
-        }
-
-        // --- 數字排序模式 (恢復為原始 Grid/Wrap 佈局) ---
-        function generateSort() {
-            const range = parseInt(document.getElementById('sort-range').value);
-            const suitMode = document.getElementById('sort-suit').value;
-            const stage = document.getElementById('cards-container');
-            
-            // 恢復為自動換行的佈局
-            stage.className = "flex flex-wrap justify-center items-center gap-3 w-full p-4 overflow-y-auto";
-            stage.innerHTML = '';
-
-            let suit = suitMode === 'random' ? suits[Math.floor(Math.random() * 4)] : suits[parseInt(suitMode)];
-            let pool = ranks.slice(0, range);
-            pool.sort(() => Math.random() - 0.5);
-
-            pool.forEach((r, idx) => {
-                stage.appendChild(createCardElement(r, suit, false, idx * 0.05));
-            });
-
-            showToast(`已打亂 1 到 ${range} 的順序`);
-        }
-
-        window.onload = () => {
-            setMode('draw');
-            lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
         };
+
+        const App = () => {
+            const [view, setView] = useState('settings'); // 'settings' or 'preview'
+            const [settings, setSettings] = useState({
+                numDigits: '2',       // 1. 數字位數
+                customMin: 10,        // 自定義最小值
+                customMax: 99,        // 自定義最大值
+                allowCarry: 'random', // 2. 進位 / 借位
+                numOperands: 3,       // 3. 數字連算數量
+                numQuestions: 20,     // 4. 總題目數
+                columns: 2,           // 5. 欄位數量
+                fontSize: 24,         // 6. 字體大小
+                numCopies: 1,         // 7. 列印份數
+                operation: 'mixed'    
+            });
+
+            const [worksheets, setWorksheets] = useState([]);
+
+            const getNumberRange = (mode) => {
+                if (mode === '1') return { min: 1, max: 9 };
+                if (mode === '2') return { min: 10, max: 99 };
+                if (mode === '3') return { min: 100, max: 999 };
+                if (mode === 'mixed12') {
+                    const useDigits = Math.random() > 0.5 ? 1 : 2;
+                    return useDigits === 1 ? { min: 1, max: 9 } : { min: 10, max: 99 };
+                }
+                if (mode === 'mixed23') {
+                    const useDigits = Math.random() > 0.5 ? 2 : 3;
+                    return useDigits === 2 ? { min: 10, max: 99 } : { min: 100, max: 999 };
+                }
+                if (mode === 'custom') {
+                    return { min: settings.customMin, max: settings.customMax };
+                }
+                return { min: 10, max: 99 };
+            };
+
+            const generateNumber = (range) => {
+                const { min, max } = range;
+                const finalMin = Math.min(min, max);
+                const finalMax = Math.max(min, max);
+                return Math.floor(Math.random() * (finalMax - finalMin + 1)) + finalMin;
+            };
+
+            const createOneWorksheetData = () => {
+                const questions = [];
+                let attempts = 0;
+                while (questions.length < settings.numQuestions && attempts < 5000) {
+                    attempts++;
+                    const operands = [];
+                    const operators = [];
+                    
+                    operands.push(generateNumber(getNumberRange(settings.numDigits)));
+                    for (let i = 1; i < settings.numOperands; i++) {
+                        const op = Math.random() > 0.5 ? 'add' : 'sub';
+                        operators.push(op === 'add' ? '+' : '-');
+                        operands.push(generateNumber(getNumberRange(settings.numDigits)));
+                    }
+                    
+                    let currentVal = operands[0];
+                    let isValidResult = true;
+                    for (let i = 0; i < operators.length; i++) {
+                        if (operators[i] === '+') currentVal += operands[i+1];
+                        else currentVal -= operands[i+1];
+                        if (currentVal < 0) { isValidResult = false; break; }
+                    }
+                    if (!isValidResult) continue;
+
+                    let hasCarryOrBorrow = false;
+                    if (settings.allowCarry !== 'random') {
+                        let tempVal = operands[0];
+                        for (let i = 0; i < operators.length; i++) {
+                            const a = tempVal;
+                            const b = operands[i+1];
+                            const op = operators[i];
+                            const aStr = a.toString().split('').reverse();
+                            const bStr = b.toString().split('').reverse();
+                            const maxLen = Math.max(aStr.length, bStr.length);
+                            if (op === '+') {
+                                for (let j = 0; j < maxLen; j++) {
+                                    if (parseInt(aStr[j] || 0) + parseInt(bStr[j] || 0) >= 10) { hasCarryOrBorrow = true; break; }
+                                }
+                                tempVal += b;
+                            } else {
+                                for (let j = 0; j < maxLen; j++) {
+                                    if (parseInt(aStr[j] || 0) < parseInt(bStr[j] || 0)) { hasCarryOrBorrow = true; break; }
+                                }
+                                tempVal -= b;
+                            }
+                            if (hasCarryOrBorrow) break;
+                        }
+                        if (settings.allowCarry === 'no' && hasCarryOrBorrow) continue;
+                        if (settings.allowCarry === 'yes' && !hasCarryOrBorrow) continue;
+                    }
+                    questions.push({ operands, operators, ans: currentVal });
+                }
+                return questions;
+            };
+
+            const paginateQuestions = (questions) => {
+                const rowHeight = settings.fontSize * 2.0; 
+                const rowsPerPage = Math.max(1, Math.floor(1060 / rowHeight));
+                const questionsPerPage = rowsPerPage * settings.columns;
+                const pages = [];
+                for (let i = 0; i < questions.length; i += questionsPerPage) {
+                    pages.push(questions.slice(i, i + questionsPerPage));
+                }
+                return pages;
+            };
+
+            const generateAllWorksheets = () => {
+                const all = [];
+                for (let c = 0; c < settings.numCopies; c++) {
+                    const questions = createOneWorksheetData();
+                    all.push({
+                        id: `sheet-${Date.now()}-${c}`,
+                        copyIndex: c + 1,
+                        pages: paginateQuestions(questions),
+                        allQuestions: questions 
+                    });
+                }
+                setWorksheets(all);
+            };
+
+            useEffect(() => {
+                generateAllWorksheets();
+            }, [settings]);
+
+            const handlePrint = () => {
+                window.focus();
+                setTimeout(() => {
+                    window.print();
+                }, 300);
+            };
+
+            return (
+                <div className="min-h-screen">
+                    {/* 設定面板視圖 */}
+                    {view === 'settings' && (
+                        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl p-8 mb-10 no-print border border-slate-200 mt-12">
+                            <div className="flex items-center gap-4 mb-8 border-b pb-6 text-slate-800">
+                                <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg">
+                                    <Icon name="settings" size={28} />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black tracking-tight">數學練習題產生器</h1>
+                                    <p className="text-slate-500 text-sm font-medium">調整下方參數，即時產生不重複的練習題目</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 text-slate-700">
+                                {/* 1. 數字位數 */}
+                                <div className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="binary" className="text-blue-500" /> 1. 數字位數</span>
+                                    <select 
+                                        className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 focus:border-blue-500 focus:bg-white transition-all outline-none"
+                                        value={settings.numDigits}
+                                        onChange={(e) => setSettings({...settings, numDigits: e.target.value})}
+                                    >
+                                        <option value="1">個位數 (1-9)</option>
+                                        <option value="2">雙位數 (10-99)</option>
+                                        <option value="3">三位數 (100-999)</option>
+                                        <option value="mixed12">混合 (個位 + 雙位)</option>
+                                        <option value="mixed23">混合 (雙位 + 三位)</option>
+                                        <option value="custom">自定義區間</option>
+                                    </select>
+                                    {settings.numDigits === 'custom' && (
+                                        <div className="flex items-center gap-2 mt-3 animate-in fade-in slide-in-from-top-1">
+                                            <input 
+                                                type="number" 
+                                                className="w-full rounded-lg border border-slate-200 p-2 text-center text-sm"
+                                                value={settings.customMin}
+                                                onChange={(e) => setSettings({...settings, customMin: parseInt(e.target.value) || 0})}
+                                                placeholder="最小"
+                                            />
+                                            <span className="text-slate-400">至</span>
+                                            <input 
+                                                type="number" 
+                                                className="w-full rounded-lg border border-slate-200 p-2 text-center text-sm"
+                                                value={settings.customMax}
+                                                onChange={(e) => setSettings({...settings, customMax: parseInt(e.target.value) || 0})}
+                                                placeholder="最大"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 2. 進位 / 借位 */}
+                                <label className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="refresh-cw" className="text-blue-500" /> 2. 進位 / 借位</span>
+                                    <select 
+                                        className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 focus:border-blue-500 focus:bg-white transition-all outline-none"
+                                        value={settings.allowCarry}
+                                        onChange={(e) => setSettings({...settings, allowCarry: e.target.value})}
+                                    >
+                                        <option value="random">隨機 (不限)</option>
+                                        <option value="no">禁止進位 / 借位</option>
+                                        <option value="yes">必須有進位 / 借位</option>
+                                    </select>
+                                </label>
+
+                                {/* 3. 數字連算數量 */}
+                                <label className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="plus-circle" className="text-blue-500" /> 3. 數字連算數量</span>
+                                    <input 
+                                        type="number" min="2" max="10"
+                                        className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-center"
+                                        value={settings.numOperands}
+                                        onChange={(e) => setSettings({...settings, numOperands: parseInt(e.target.value) || 2})}
+                                    />
+                                </label>
+
+                                {/* 4. 總題目數 */}
+                                <label className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="file-text" className="text-blue-500" /> 4. 總題目數</span>
+                                    <input 
+                                        type="number" min="1" max="500"
+                                        className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-center"
+                                        value={settings.numQuestions}
+                                        onChange={(e) => setSettings({...settings, numQuestions: parseInt(e.target.value) || 1})}
+                                    />
+                                </label>
+
+                                {/* 5. 欄位數量 */}
+                                <label className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="columns" className="text-blue-500" /> 5. 欄位數量</span>
+                                    <div className="grid grid-cols-3 gap-2 mt-1">
+                                        {[1, 2, 3].map(n => (
+                                            <button 
+                                                key={n}
+                                                onClick={() => setSettings({...settings, columns: n})}
+                                                className={`py-2 rounded-xl font-bold border-2 transition-all ${settings.columns === n ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}
+                                            >
+                                                {n} 欄
+                                            </button>
+                                        ))}
+                                    </div>
+                                </label>
+
+                                {/* 6. 字體大小 */}
+                                <label className="block">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="type" className="text-blue-500" /> 6. 字體大小: {settings.fontSize}px</span>
+                                    <div className="flex items-center gap-4 mt-2">
+                                        <input 
+                                            type="range" min="16" max="64" 
+                                            className="flex-1 h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            value={settings.fontSize}
+                                            onChange={(e) => setSettings({...settings, fontSize: parseInt(e.target.value)})}
+                                        />
+                                        <span className="w-8 font-bold text-blue-600 text-center">{settings.fontSize}</span>
+                                    </div>
+                                </label>
+
+                                {/* 7. 列印份數 */}
+                                <label className="block md:col-span-2">
+                                    <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="copy" className="text-blue-500" /> 7. 列印份數 (生成多份不同題目)</span>
+                                    <input 
+                                        type="number" min="1" max="100"
+                                        className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 focus:border-blue-500 focus:bg-white transition-all outline-none font-black text-blue-600 text-center text-2xl shadow-inner"
+                                        value={settings.numCopies}
+                                        onChange={(e) => setSettings({...settings, numCopies: parseInt(e.target.value) || 1})}
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="mt-12 flex flex-col items-center">
+                                <button 
+                                    onClick={() => setView('preview')}
+                                    className="group relative bg-blue-600 hover:bg-blue-700 text-white px-20 py-5 rounded-2xl font-black text-xl transition-all shadow-xl shadow-blue-100 active:scale-95 flex items-center gap-3"
+                                >
+                                    <Icon name="eye" size={24} /> 顯示 A4 預覽與下載
+                                </button>
+                                <p className="text-slate-400 text-xs mt-4 italic font-medium tracking-wide">預覽模式將自動按照 A4 格式進行智慧分頁</p>
+                                
+                                {/* 頁腳資訊 */}
+                                <div className="mt-8 pt-6 border-t border-slate-100 w-full text-center">
+                                    <p className="text-slate-400 text-sm font-medium">
+                                        設計：
+                                        <a 
+                                            href="https://www.facebook.com/mpotkevin" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-slate-500 hover:text-blue-600 transition-all border-b border-transparent hover:border-blue-500 ml-1"
+                                        >
+                                            職能治療師 - 鄭凱文
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* A4 預覽視圖 */}
+                    {view === 'preview' && (
+                        <div className="relative">
+                            {/* 預覽導航欄 */}
+                            <div className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 p-4 shadow-sm no-print">
+                                <div className="max-w-6xl mx-auto flex justify-between items-center">
+                                    <button 
+                                        onClick={() => setView('settings')}
+                                        className="flex items-center gap-2 px-6 py-2 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-all border border-slate-200"
+                                    >
+                                        <Icon name="arrow-left" size={20} /> 返回修改設定
+                                    </button>
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-slate-500 text-sm font-medium">
+                                                正在預覽 <span className="text-blue-600 font-bold">{settings.numCopies}</span> 份內容
+                                            </span>
+                                            <button 
+                                                onClick={handlePrint}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-xl font-black transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                                            >
+                                                <Icon name="printer" size={20} /> 列印 / 下載 PDF
+                                            </button>
+                                        </div>
+                                        <span className="text-[10px] text-emerald-600 font-bold">提示：請在列印視窗中選擇「另存為 PDF」</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 預覽內容 */}
+                            <div className="pb-20">
+                                {worksheets.map((sheet) => (
+                                    <React.Fragment key={sheet.id}>
+                                        {/* 題目分頁 */}
+                                        {sheet.pages.map((pageQuestions, pIdx) => (
+                                            <div key={`${sheet.id}-p-${pIdx}`} className="a4-page overflow-hidden flex flex-col print:break-after-page shadow-2xl mb-10 print:mb-0 print:shadow-none">
+                                                <div className="p-[0.8cm] md:p-[1cm] flex-grow">
+                                                    <div className="flex justify-between items-end border-b-2 border-black pb-3 mb-8 text-black">
+                                                        <div>
+                                                            <h2 className="text-3xl font-black tracking-tighter uppercase leading-none">數學練習題 (#{sheet.copyIndex})</h2>
+                                                            <div className="text-[10px] text-slate-400 font-bold mt-1 tracking-widest uppercase">
+                                                                Page {pIdx + 1} / {sheet.pages.length}
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-48 text-[12px] font-bold space-y-1.5">
+                                                            <div className="border-b border-slate-300 flex justify-between">姓名：<span className="w-32"></span></div>
+                                                            <div className="border-b border-slate-300 flex justify-between">日期：<span className="w-32"></span></div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div 
+                                                        className="grid gap-x-12 gap-y-4 text-black" 
+                                                        style={{ 
+                                                            gridTemplateColumns: `repeat(${settings.columns}, 1fr)`,
+                                                            fontSize: `${settings.fontSize}px`,
+                                                            lineHeight: '1.2'
+                                                        }}
+                                                    >
+                                                        {pageQuestions.map((q, qIdx) => {
+                                                            const globalIdx = sheet.pages.slice(0, pIdx).reduce((acc, p) => acc + p.length, 0) + qIdx + 1;
+                                                            return (
+                                                                <div key={qIdx} className="flex items-baseline overflow-hidden">
+                                                                    <span className="w-10 text-slate-300 font-mono text-sm font-bold shrink-0">{globalIdx}.</span>
+                                                                    <div className="flex-1 font-mono flex flex-wrap items-center gap-x-1 gap-y-1 whitespace-nowrap">
+                                                                        {q.operands.map((num, nIdx) => (
+                                                                            <React.Fragment key={nIdx}>
+                                                                                <span className="tabular-nums">{num}</span>
+                                                                                {nIdx < q.operators.length && (
+                                                                                    <span className="text-blue-500 font-bold px-0.5">{q.operators[nIdx]}</span>
+                                                                                )}
+                                                                            </React.Fragment>
+                                                                        ))}
+                                                                        <span className="font-bold">=</span>
+                                                                        <div className="border-b-2 border-slate-200 flex-grow min-w-[50px] h-[1.1em]"></div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 text-center text-[9px] text-slate-300 border-t border-slate-50 italic tracking-widest">
+                                                    練習是進步的唯一途徑 • Set #{sheet.copyIndex} - Page {pIdx + 1}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* 解答頁 */}
+                                        <div className="a4-page overflow-hidden flex flex-col print:break-after-page print:bg-white bg-slate-50 shadow-inner">
+                                            <div className="p-[1.5cm] flex-grow">
+                                                <div className="flex items-center gap-4 mb-8 pb-3 border-b-2 border-slate-300">
+                                                    <div className="bg-emerald-500 p-1.5 rounded-lg text-white">
+                                                        <Icon name="check-circle-2" size={20} />
+                                                    </div>
+                                                    <h3 className="text-xl font-bold text-slate-800 tracking-tight">標準解答卷 (Set #{sheet.copyIndex})</h3>
+                                                </div>
+                                                <div className="grid grid-cols-5 gap-4">
+                                                    {sheet.allQuestions.map((q, qIdx) => (
+                                                        <div key={qIdx} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col items-center shadow-sm">
+                                                            <span className="text-[10px] text-slate-400 font-bold mb-1 italic text-center w-full">Q{qIdx + 1}</span>
+                                                            <span className="text-xl font-black text-blue-700 font-mono tabular-nums tracking-tighter text-center">{q.ans}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="p-6 text-center text-[10px] text-slate-400 border-t border-slate-100 font-bold tracking-widest uppercase">
+                                                Answer Key for Worksheet Set #{sheet.copyIndex}
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
