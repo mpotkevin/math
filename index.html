@@ -71,6 +71,8 @@
             const [view, setView] = useState('settings'); // 'settings' or 'preview'
             const [settings, setSettings] = useState({
                 numDigits: '2',       // 1. 數字位數
+                customMin: 10,        // 自定義最小值
+                customMax: 99,        // 自定義最大值
                 allowCarry: 'random', // 2. 進位 / 借位
                 numOperands: 3,       // 3. 數字連算數量
                 numQuestions: 20,     // 4. 總題目數
@@ -82,21 +84,29 @@
 
             const [worksheets, setWorksheets] = useState([]);
 
-            const getRandDigits = (mode) => {
-                switch (mode) {
-                    case '1': return 1;
-                    case '2': return 2;
-                    case '3': return 3;
-                    case 'mixed12': return Math.random() > 0.5 ? 1 : 2;
-                    case 'mixed23': return Math.random() > 0.5 ? 2 : 3;
-                    default: return 2;
+            const getNumberRange = (mode) => {
+                if (mode === '1') return { min: 1, max: 9 };
+                if (mode === '2') return { min: 10, max: 99 };
+                if (mode === '3') return { min: 100, max: 999 };
+                if (mode === 'mixed12') {
+                    const useDigits = Math.random() > 0.5 ? 1 : 2;
+                    return useDigits === 1 ? { min: 1, max: 9 } : { min: 10, max: 99 };
                 }
+                if (mode === 'mixed23') {
+                    const useDigits = Math.random() > 0.5 ? 2 : 3;
+                    return useDigits === 2 ? { min: 10, max: 99 } : { min: 100, max: 999 };
+                }
+                if (mode === 'custom') {
+                    return { min: settings.customMin, max: settings.customMax };
+                }
+                return { min: 10, max: 99 };
             };
 
-            const generateNumber = (digits) => {
-                const min = Math.pow(10, digits - 1);
-                const max = Math.pow(10, digits) - 1;
-                return Math.floor(Math.random() * (max - min + 1)) + min;
+            const generateNumber = (range) => {
+                const { min, max } = range;
+                const finalMin = Math.min(min, max);
+                const finalMax = Math.max(min, max);
+                return Math.floor(Math.random() * (finalMax - finalMin + 1)) + finalMin;
             };
 
             const createOneWorksheetData = () => {
@@ -106,12 +116,14 @@
                     attempts++;
                     const operands = [];
                     const operators = [];
-                    operands.push(generateNumber(getRandDigits(settings.numDigits)));
+                    
+                    operands.push(generateNumber(getNumberRange(settings.numDigits)));
                     for (let i = 1; i < settings.numOperands; i++) {
                         const op = Math.random() > 0.5 ? 'add' : 'sub';
                         operators.push(op === 'add' ? '+' : '-');
-                        operands.push(generateNumber(getRandDigits(settings.numDigits)));
+                        operands.push(generateNumber(getNumberRange(settings.numDigits)));
                     }
+                    
                     let currentVal = operands[0];
                     let isValidResult = true;
                     for (let i = 0; i < operators.length; i++) {
@@ -154,7 +166,6 @@
 
             const paginateQuestions = (questions) => {
                 const rowHeight = settings.fontSize * 2.0; 
-                // A4 內容高度限制在 1060px，縮小行高係數至 2.0 以善用空間
                 const rowsPerPage = Math.max(1, Math.floor(1060 / rowHeight));
                 const questionsPerPage = rowsPerPage * settings.columns;
                 const pages = [];
@@ -183,9 +194,7 @@
             }, [settings]);
 
             const handlePrint = () => {
-                // 某些瀏覽器需要先 focus 視窗
                 window.focus();
-                // 延遲一點點時間讓 DOM 完全穩定後開啟列印視窗
                 setTimeout(() => {
                     window.print();
                 }, 300);
@@ -207,21 +216,43 @@
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 text-slate-700">
-                                <label className="block">
+                                {/* 1. 數字位數 */}
+                                <div className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="binary" className="text-blue-500" /> 1. 數字位數</span>
                                     <select 
                                         className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 focus:border-blue-500 focus:bg-white transition-all outline-none"
                                         value={settings.numDigits}
                                         onChange={(e) => setSettings({...settings, numDigits: e.target.value})}
                                     >
-                                        <option value="1">個位數</option>
-                                        <option value="2">雙位數</option>
-                                        <option value="3">三位數</option>
+                                        <option value="1">個位數 (1-9)</option>
+                                        <option value="2">雙位數 (10-99)</option>
+                                        <option value="3">三位數 (100-999)</option>
                                         <option value="mixed12">混合 (個位 + 雙位)</option>
                                         <option value="mixed23">混合 (雙位 + 三位)</option>
+                                        <option value="custom">自定義區間</option>
                                     </select>
-                                </label>
+                                    {settings.numDigits === 'custom' && (
+                                        <div className="flex items-center gap-2 mt-3 animate-in fade-in slide-in-from-top-1">
+                                            <input 
+                                                type="number" 
+                                                className="w-full rounded-lg border border-slate-200 p-2 text-center text-sm"
+                                                value={settings.customMin}
+                                                onChange={(e) => setSettings({...settings, customMin: parseInt(e.target.value) || 0})}
+                                                placeholder="最小"
+                                            />
+                                            <span className="text-slate-400">至</span>
+                                            <input 
+                                                type="number" 
+                                                className="w-full rounded-lg border border-slate-200 p-2 text-center text-sm"
+                                                value={settings.customMax}
+                                                onChange={(e) => setSettings({...settings, customMax: parseInt(e.target.value) || 0})}
+                                                placeholder="最大"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
 
+                                {/* 2. 進位 / 借位 */}
                                 <label className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="refresh-cw" className="text-blue-500" /> 2. 進位 / 借位</span>
                                     <select 
@@ -235,6 +266,7 @@
                                     </select>
                                 </label>
 
+                                {/* 3. 數字連算數量 */}
                                 <label className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="plus-circle" className="text-blue-500" /> 3. 數字連算數量</span>
                                     <input 
@@ -245,6 +277,7 @@
                                     />
                                 </label>
 
+                                {/* 4. 總題目數 */}
                                 <label className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="file-text" className="text-blue-500" /> 4. 總題目數</span>
                                     <input 
@@ -255,6 +288,7 @@
                                     />
                                 </label>
 
+                                {/* 5. 欄位數量 */}
                                 <label className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="columns" className="text-blue-500" /> 5. 欄位數量</span>
                                     <div className="grid grid-cols-3 gap-2 mt-1">
@@ -270,6 +304,7 @@
                                     </div>
                                 </label>
 
+                                {/* 6. 字體大小 */}
                                 <label className="block">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="type" className="text-blue-500" /> 6. 字體大小: {settings.fontSize}px</span>
                                     <div className="flex items-center gap-4 mt-2">
@@ -283,6 +318,7 @@
                                     </div>
                                 </label>
 
+                                {/* 7. 列印份數 */}
                                 <label className="block md:col-span-2">
                                     <span className="text-sm font-bold mb-2 flex items-center gap-2"><Icon name="copy" className="text-blue-500" /> 7. 列印份數 (生成多份不同題目)</span>
                                     <input 
@@ -301,7 +337,22 @@
                                 >
                                     <Icon name="eye" size={24} /> 顯示 A4 預覽與下載
                                 </button>
-                                <p className="text-slate-400 text-xs mt-4">預覽模式將自動按照 A4 格式進行智慧分頁</p>
+                                <p className="text-slate-400 text-xs mt-4 italic font-medium tracking-wide">預覽模式將自動按照 A4 格式進行智慧分頁</p>
+                                
+                                {/* 頁腳資訊 */}
+                                <div className="mt-8 pt-6 border-t border-slate-100 w-full text-center">
+                                    <p className="text-slate-400 text-sm font-medium">
+                                        設計：
+                                        <a 
+                                            href="https://www.facebook.com/mpotkevin" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-slate-500 hover:text-blue-600 transition-all border-b border-transparent hover:border-blue-500 ml-1"
+                                        >
+                                            職能治療師 - 鄭凱文
+                                        </a>
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     )}
